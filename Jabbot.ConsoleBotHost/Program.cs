@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Configuration;
 using System.Linq;
+using Jabbot.Sprockets;
 
 namespace Jabbot.ConsoleBotHost
 {
@@ -28,6 +29,7 @@ namespace Jabbot.ConsoleBotHost
                 Console.WriteLine(String.Format("Connecting to {0}...", _serverUrl));
                 Bot bot = new Bot(_serverUrl, _botName, _botPassword);
                 bot.PowerUp();
+                LoadSprockets(bot);
                 JoinRooms(bot);
                 Console.Write("Press enter to quit...");
                 Console.ReadLine();
@@ -72,6 +74,10 @@ namespace Jabbot.ConsoleBotHost
             }
 
             return true;
+        }
+        private static void LoadSprockets(Bot bot)
+        {
+            bot.AddSprocket(new Jabbot.Sprockets.Github.Issues());
         }
     }
 }

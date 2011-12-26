@@ -30,6 +30,8 @@
     <UseApplicationTrust>false</UseApplicationTrust>
     <PublishWizardCompleted>true</PublishWizardCompleted>
     <BootstrapperEnabled>true</BootstrapperEnabled>
+    <SolutionDir Condition="$(SolutionDir) == '' Or $(SolutionDir) == '*Undefined*'">..\..\Jabbot\</SolutionDir>
+    <RestorePackages>true</RestorePackages>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|x86' ">
     <PlatformTarget>x86</PlatformTarget>
@@ -78,6 +80,10 @@
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\Jabbot.Sprockets\Jabbot.Sprockets.csproj">
+      <Project>{7D038EF9-7ADD-4014-934F-774244FDA551}</Project>
+      <Name>Jabbot.Sprockets</Name>
+    </ProjectReference>
     <ProjectReference Include="..\Jabbot\Jabbot.csproj">
       <Project>{478BFCF7-9397-49A7-AFD4-060B6B749E77}</Project>
       <Name>Jabbot</Name>
@@ -109,6 +115,7 @@
     </BootstrapperPackage>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+  <Import Project="$(SolutionDir)\.nuget\nuget.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
        Other similar extension points exist, see Microsoft.Common.targets.
   <Target Name="BeforeBuild">
