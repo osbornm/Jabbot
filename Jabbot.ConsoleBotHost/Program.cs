@@ -79,6 +79,7 @@ namespace Jabbot.ConsoleBotHost
         {
             bot.AddSprocket(new Jabbot.Sprockets.Github.Issues());
             bot.AddSprocket(new Jabbot.Sprockets.Github.Issue());
+            bot.AddSprocket(new Jabbot.Sprockets.Github.Members());
         }
     }
 }

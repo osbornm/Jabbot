@@ -159,6 +159,17 @@ namespace Jabbot
         }
 
         /// <summary>
+        /// Say something to a room.
+        /// </summary>
+        /// <param name="what">what to say, will be formated</param>
+        /// <param name="room">the room to say it to</param>
+        /// <param name="args">params to use when formating what to say</param>
+        public void Say(string what, string room, params object[] args)
+        {
+            Say(String.Format(what, args), room);
+        }
+
+        /// <summary>
         /// Reply to someone
         /// </summary>
         /// <param name="who">the person you want the bot to reply to</param>
