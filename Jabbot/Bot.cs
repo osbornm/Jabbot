@@ -8,7 +8,7 @@ using System.Net;
 using System.Threading.Tasks;
 using System.Web.Hosting;
 using Jabbot.Models;
-using Jabbot.Sprockets;
+using Jabbot.Sprockets.Core;
 using SignalR.Client.Hubs;
 
 namespace Jabbot
@@ -19,9 +19,14 @@ namespace Jabbot
         private readonly IHubProxy _chat;
         private readonly string _password;
         private readonly List<ISprocket> _sprockets = new List<ISprocket>();
+        private readonly List<IUnhandledMessageSprocket> _unhandledMessageSprockets = new List<IUnhandledMessageSprocket>();
         private readonly HashSet<string> _rooms = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         private const string ExtensionsFolder = "Sprockets";
+
+        private ComposablePartCatalog _catalog = null;
+        private CompositionContainer _container = null;
+
 
         public Bot(string url, string name, string password)
         {
@@ -75,6 +80,23 @@ namespace Jabbot
             _sprockets.Remove(sprocket);
         }
 
+
+        /// <summary>
+        /// Add a sprocket to the bot instance
+        /// </summary>
+        public void AddUnhandledMessageSprocket(IUnhandledMessageSprocket sprocket)
+        {
+            _unhandledMessageSprockets.Add(sprocket);
+        }
+
+        /// <summary>
+        /// Remove a sprocket from the bot instance
+        /// </summary>
+        public void RemoveUnhandledMessageSprocket(IUnhandledMessageSprocket sprocket)
+        {
+            _unhandledMessageSprockets.Remove(sprocket);
+        }
+
         /// <summary>
         /// Remove all sprockets
         /// </summary>
@@ -99,9 +121,9 @@ namespace Jabbot
                 _chat.On("addUser", OnJoin);
 
                 _chat.On<IEnumerable<string>>("logOn", OnLogOn);
-
+                
                 // Start the connection and wait
-                _connection.Start().Wait();
+                _connection.Start(SignalR.Client.Transports.Transport.LongPolling).Wait();
 
                 // Join the chat
                 var success = _chat.Invoke<bool>("Join").Result;
@@ -110,6 +132,8 @@ namespace Jabbot
                 {
                     // Setup the name of the bot
                     Send(String.Format("/nick {0} {1}", Name, _password));
+
+                    IntializeSprockets();
                 }
             }
         }
@@ -136,6 +160,16 @@ namespace Jabbot
             // Add the room to the list
             _rooms.Add(room);
         }
+
+        /// <summary>
+        /// Sets the Bot's gravatar email
+        /// </summary>
+        /// <param name="gravatarEmail"></param>
+        public void Gravatar(string gravatarEmail)
+        {
+            Send("/gravatar " + gravatarEmail);
+        }
+       
 
         /// <summary>
         /// Say something to the active room.
@@ -268,14 +302,31 @@ namespace Jabbot
                     MessageReceived(chatMessage);
                 }
 
+                bool handled = false;
+
                 // Loop over the registered sprockets
                 foreach (var handler in _sprockets)
                 {
                     // Stop at the first one that handled the message
                     if (handler.Handle(chatMessage, this))
                     {
+                        handled = true;
                         break;
                     }
+                }
+
+                if (!handled)
+                {
+                    // Loop over the unhandled message sprockets
+                    foreach (var handler in _unhandledMessageSprockets)
+                    {
+                        // Stop at the first one that handled the message
+                        if (handler.Handle(chatMessage, this))
+                        {
+                            break;
+                        }
+                    }
+
                 }
             })
             .ContinueWith(task =>
@@ -308,34 +359,64 @@ namespace Jabbot
 
         private void InitializeContainer()
         {
-            string extensionsPath = GetExtensionsPath();
-            ComposablePartCatalog catalog = null;
-
-            // If the extensions folder exists then use them
-            if (Directory.Exists(extensionsPath))
-            {
-                catalog = new AggregateCatalog(
-                            new AssemblyCatalog(typeof(Bot).Assembly),
-                            new DirectoryCatalog(extensionsPath, "*.dll"));
-            }
-            else
-            {
-                catalog = new AssemblyCatalog(typeof(Bot).Assembly);
-            }
-
-            var container = new CompositionContainer(catalog);
-
+            var container = CreateCompositionContainer();
             // Add all the sprockets to the sprocket list
             foreach (var sprocket in container.GetExportedValues<ISprocket>())
             {
                 AddSprocket(sprocket);
             }
+
+            // Add all the sprockets to the sprocket list
+            foreach (var sprocket in container.GetExportedValues<IUnhandledMessageSprocket>())
+            {
+                AddUnhandledMessageSprocket(sprocket);
+            }
+        }
+
+        private void IntializeSprockets()
+        {
+            var container = CreateCompositionContainer();
+            // Run all sprocket initializers
+            foreach (var sprocketInitializer in container.GetExportedValues<ISprocketInitializer>())
+            {
+                try
+                {
+                    sprocketInitializer.Initialize(this);
+                }
+                catch (Exception ex)
+                {
+                    Trace.WriteLine(String.Format("Unable to Initialize {0}:{1}", sprocketInitializer.GetType().Name, ex.GetBaseException().Message));
+                }
+            }
+        }
+
+        private CompositionContainer CreateCompositionContainer()
+        {
+            if (_container == null)
+            {
+                string extensionsPath = GetExtensionsPath();
+
+                // If the extensions folder exists then use them
+                if (Directory.Exists(extensionsPath))
+                {
+                    _catalog = new AggregateCatalog(
+                                new AssemblyCatalog(typeof(Bot).Assembly),
+                                new DirectoryCatalog(extensionsPath, "*.dll"));
+                }
+                else
+                {
+                    _catalog = new AssemblyCatalog(typeof(Bot).Assembly);
+                }
+
+                _container = new CompositionContainer(_catalog);
+            }
+            return _container;
         }
 
         private static string GetExtensionsPath()
         {
             string rootPath = null;
-            if (HostingEnvironment.IsHosted)
+            if (HostingEnvironment.IsHosted)    
             {
 
                 rootPath = HostingEnvironment.ApplicationPhysicalPath;
